@@ -63,7 +63,6 @@ class JobRunner(object):
         elif hpc_type == 'torque':
             self.subtask_env_var_name = "PBS_ARRAYID"
 
-
     def _make_qsub_command(self, job_name, log_file, wait_for=[], wait_for_array=[], slot_dependency=False, threads=1, parallel_environment=None, num_tasks=None, max_processes=None):
         """Create the qsub command line to run a job on a computing cluster.
 
@@ -147,7 +146,7 @@ class JobRunner(object):
             if isinstance(wait_for_array, str):
                 wait_for_array = [wait_for_array]
             if not slot_dependency:
-                wait_for.extend(wait_for_array) # combine lists
+                wait_for.extend(wait_for_array)  # combine lists
             if len(wait_for) > 0:
                 qsub_command_line += " -hold_jid " + ','.join(wait_for)
             if slot_dependency and len(wait_for_array) > 0:
@@ -187,7 +186,6 @@ class JobRunner(object):
             if self.qsub_extra_params:
                 qsub_command_line += ' ' + self.qsub_extra_params
             return qsub_command_line
-
 
     def run(self, command_line, job_name, log_file, wait_for=[], wait_for_array=[], threads=1, parallel_environment=None):
         """Run a non-array job.  Stderr is redirected (joined) to stdout.
@@ -265,7 +263,7 @@ class JobRunner(object):
                     raise
             return '0'
 
-        else: # grid or torque
+        else:  # grid or torque
             qsub_command_line = self._make_qsub_command(job_name, log_file, wait_for, wait_for_array, threads=threads, parallel_environment=parallel_environment)
 
             # Run command and return its stdout output as a byte string.
@@ -280,7 +278,6 @@ class JobRunner(object):
             if self.verbose:
                 print("Job id=" + job_id)
             return job_id
-
 
     def run_array(self, command_line, job_name, log_file, array_file, num_tasks=None, max_processes=None, wait_for=[], wait_for_array=[], slot_dependency=False, threads=1, parallel_environment=None):
         """Run an array of sub-tasks with the work of each task defined by a single line in the specified array_file.
@@ -344,7 +341,7 @@ class JobRunner(object):
                 num_tasks = sum(1 for line in f)
 
         if self.hpc_type == "grid":
-            log_file += "-\$TASK_ID"
+            log_file += "-\\$TASK_ID"
 
         if self.hpc_type == "local":
             # Change parameter placeholder into bash variables ready to feed to bash through xargs
@@ -367,7 +364,7 @@ class JobRunner(object):
 
             # Run command. Wait for command to complete
             try:
-                subprocess.check_call(command_line, shell=True, executable="bash") # If the return code is non-zero it raises a CalledProcessError
+                subprocess.check_call(command_line, shell=True, executable="bash")  # If the return code is non-zero it raises a CalledProcessError
             except subprocess.CalledProcessError:
                 if self.exception_handler:
                     exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -376,14 +373,14 @@ class JobRunner(object):
                     raise
             return '0'
 
-        else: # grid or torque
+        else:  # grid or torque
             qsub_command_line = self._make_qsub_command(job_name, log_file, wait_for, wait_for_array, slot_dependency, threads, parallel_environment, num_tasks, max_processes)
 
             shell_command_line = "echo qarrayrun " + self.subtask_env_var_name + ' ' + array_file + ' ' + command_line + " | " + qsub_command_line
             if self.verbose:
                 print(shell_command_line)
 
-            job_id = subprocess.check_output(shell_command_line, shell=True) # If the return code is non-zero it raises a CalledProcessError
+            job_id = subprocess.check_output(shell_command_line, shell=True)  # If the return code is non-zero it raises a CalledProcessError
             if sys.version_info > (3,):
                 job_id = job_id.decode(std_encoding)  # Python 3 stdout is bytes, not str
             job_id = job_id.strip()
