@@ -7,7 +7,7 @@ test_jobrunner
 Tests for `jobrunner` module.
 """
 
-from jobrunner.jobrunner import JobRunner
+from jobrunner import JobRunner
 
 
 def test_arrayjob(tmpdir):
