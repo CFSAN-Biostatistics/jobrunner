@@ -217,13 +217,13 @@ class JobRunner(object):
 
         Raises
         ------
-        In local mode, non-zero exit codes will raise CalledProcessError and the exception will
-        be routed to the exception handler installed during JobRunner initialization, if any.
-        If no exception handler was specified, the exception is re-raised.
+        CalledProcessError
+
+        In local mode, non-zero exit codes will raise CalledProcessError and the exception will be routed to the exception handler installed during JobRunner initialization, if any.  If no exception handler was specified, the exception is re-raised.
 
         Examples
         --------
-        # Normal case - verify job id is '0', stdout and stderr written to log file
+        >>> # Normal case - verify job id is '0', stdout and stderr written to log file
         >>> from tempfile import NamedTemporaryFile
         >>> fout = NamedTemporaryFile(delete=False, mode='w'); fout.close()
         >>> runner = JobRunner("local")
@@ -238,8 +238,8 @@ class JobRunner(object):
         text to stdout
         text to stderr
 
-        # Error case, external program returns non-zero.
-        # Need to ignore exception details to work with both python2 and python3.
+        >>> # Error case, external program returns non-zero.
+        >>> # Need to ignore exception details to work with both python2 and python3.
         >>> job_id = runner.run("exit 100", "JobName", "") # doctest: +IGNORE_EXCEPTION_DETAIL
         Traceback (most recent call last):
         CalledProcessError: Command 'set -o pipefail; exit 100 2>&1 | tee ' returned non-zero exit status 100
@@ -321,14 +321,18 @@ class JobRunner(object):
             Name of the grid engine parallel execution environment.
             Ununsed for any other job scheduler.
 
+        Returns
+        -------
+        job_id : str
+            Grid or torque job id.  Returns '0' in local mode.
+
         Raises
         ------
-        If the array_file is missing or empty, and num_tasks is not specified, JobRunnerException
-        is raised.
+        JobRunnerException
 
-        In local mode, non-zero exit codes will raise CalledProcessError and the exception will
-        be routed to the exception handler installed during JobRunner initialization, if any.
-        If no exception handler was specified, the exception is re-raised.
+        If the array_file is missing or empty, and num_tasks is not specified, JobRunnerException is raised.
+
+        In local mode, non-zero exit codes will raise CalledProcessError and the exception will be routed to the exception handler installed during JobRunner initialization, if any.  If no exception handler was specified, the exception is re-raised.
         """
         # Determine the number of array slots
         if not num_tasks:
