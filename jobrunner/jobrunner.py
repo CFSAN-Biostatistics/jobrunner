@@ -279,7 +279,7 @@ class JobRunner(object):
                 print("Job id=" + job_id)
             return job_id
 
-    def run_array(self, command_line, job_name, log_file, array_file, num_tasks=None, max_processes=None, wait_for=[], wait_for_array=[], slot_dependency=False, threads=1, parallel_environment=None):
+    def run_array(self, command_line, job_name, log_file, array_file, num_tasks=None, max_processes=None, wait_for=[], wait_for_array=[], slot_dependency=False, threads=1, parallel_environment=None, shell_flag=True):
         """Run an array of sub-tasks with the work of each task defined by a single line in the specified array_file.
 
         Parameters
@@ -320,6 +320,10 @@ class JobRunner(object):
         parallel_environment : str, optional defaults to None
             Name of the grid engine parallel execution environment.
             Ununsed for any other job scheduler.
+        shell_flag : bool, optional defaults to True
+            When true, the helper program, qarrayrun, executes command lines in a subshell, which is needed for
+            command-lines having semicolons or redirection.
+            Ignored when running locally.
 
         Returns
         -------
@@ -380,7 +384,15 @@ class JobRunner(object):
         else:  # grid or torque
             qsub_command_line = self._make_qsub_command(job_name, log_file, wait_for, wait_for_array, slot_dependency, threads, parallel_environment, num_tasks, max_processes)
 
-            shell_command_line = "echo qarrayrun " + self.subtask_env_var_name + ' ' + array_file + ' ' + command_line + " | " + qsub_command_line
+            if shell_flag:
+                command_line = '"' + command_line + '"'
+                compute_node_command = "qarrayrun --shell " + self.subtask_env_var_name + ' ' + array_file + ' ' + command_line
+            else:
+                compute_node_command = "qarrayrun " + self.subtask_env_var_name + ' ' + array_file + ' ' + command_line
+
+            compute_node_command = "'" + compute_node_command + "'"
+            shell_command_line = "echo " + compute_node_command + " | " + qsub_command_line
+
             if self.verbose:
                 print(shell_command_line)
 
