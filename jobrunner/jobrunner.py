@@ -187,7 +187,7 @@ class JobRunner(object):
                 qsub_command_line += ' ' + self.qsub_extra_params
             return qsub_command_line
 
-    def run(self, command_line, job_name, log_file, wait_for=[], wait_for_array=[], threads=1, parallel_environment=None):
+    def run(self, command_line, job_name, log_file, wait_for=[], wait_for_array=[], threads=1, parallel_environment=None, quiet=False):
         """Run a non-array job.  Stderr is redirected (joined) to stdout.
 
         Parameters
@@ -209,6 +209,10 @@ class JobRunner(object):
         parallel_environment : str, optional defaults to None
             Name of the grid engine parallel execution environment.  This must be specified when
             consuming more than one thread on grid engine.  Ununsed for any other job scheduler.
+        quiet : bool, optional, defaults to False
+            Controls whether the job stderr and stdout are written to stdout in addition to the log file.
+            By default, the job stderr and stdout are written to both stdout and the log file.
+            When True, the job stderr and stdout are written to the log file only.
 
         Returns
         -------
@@ -245,7 +249,8 @@ class JobRunner(object):
         CalledProcessError: Command 'set -o pipefail; exit 100 2>&1 | tee ' returned non-zero exit status 100
         """
         if self.hpc_type == "local":
-            command_line = "set -o pipefail; " + command_line + " 2>&1 | tee " + log_file
+            redirection = " > " + log_file + " 2>&1 " if quiet else " 2>&1 | tee " + log_file
+            command_line = "set -o pipefail; " + command_line + redirection
             if self.verbose:
                 print(command_line)
 
@@ -279,7 +284,7 @@ class JobRunner(object):
                 print("Job id=" + job_id)
             return job_id
 
-    def run_array(self, command_line, job_name, log_file, array_file, num_tasks=None, max_processes=None, wait_for=[], wait_for_array=[], slot_dependency=False, threads=1, parallel_environment=None, array_subshell=True):
+    def run_array(self, command_line, job_name, log_file, array_file, num_tasks=None, max_processes=None, wait_for=[], wait_for_array=[], slot_dependency=False, threads=1, parallel_environment=None, array_subshell=True, quiet=False):
         """Run an array of sub-tasks with the work of each task defined by a single line in the specified array_file.
 
         Parameters
@@ -323,6 +328,11 @@ class JobRunner(object):
         array_subshell : bool, optional defaults to True
             When true, HPC array job command lines are quoted and executed in a subshell.
             When running locally, this parameter is ignored -- commands are not quoted and always run in a subshell.
+        quiet : bool, optional, defaults to False
+            Controls whether the job stderr and stdout are written to stdout in addition to the log file.
+            By default, the job stderr and stdout are written to both stdout and the log file.
+            When True, the job stderr and stdout are written to the log file only.
+
         Returns
         -------
         job_id : str
@@ -361,7 +371,8 @@ class JobRunner(object):
 
             # Number the tasks with nl to get the task number into the log file suffix.
             # Allow up to 9 parameters per command.
-            command_line = "nl " + array_file + " | xargs -P " + str(max_processes) + " -n 9 -L 1 bash -c + 'set -o pipefail; " + command_line + " 2>&1 | tee " + log_file + "-$0'"
+            redirection = " > " + log_file + "-$0 2>&1'" if quiet else " 2>&1 | tee " + log_file + "-$0'"
+            command_line = "nl " + array_file + " | xargs -P " + str(max_processes) + " -n 9 -L 1 bash -c + 'set -o pipefail; " + command_line + redirection
             if self.verbose:
                 print(command_line)
 
