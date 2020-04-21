@@ -3,7 +3,7 @@ Usage
 ========
 
 The ``jobrunner`` package is a Python API providing an abstraction layer to run jobs
-on HPC clusters using Grid Engine, Torque, or on the local computer.
+on HPC clusters using Grid Engine, SLURM, Torque, or on the local computer.
 
 When using ``jobrunner``, you do not need to execute ``qsub`` explicitly, the ``jobrunner``
 package automatically builds and executes the correct ``qsub`` command for you.
@@ -11,7 +11,7 @@ package automatically builds and executes the correct ``qsub`` command for you.
 To submit a job for execution on Grid Engine::
 
   from jobrunner import JobRunner
-  runner = JobRunner("grid")
+  runner = JobRunner("grid")  # This also works with "slurm" or "torque"
   command_line = "echo Hello World"
   job_id = runner.run(command_line, "JobName", "logfile.log")
 

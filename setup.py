@@ -25,7 +25,7 @@ test_requirements = [
 
 setup(
     name='jobrunner',
-    version='1.2.0',
+    version='1.3.0',
     description="An abstraction layer to run jobs on HPC clusters using Grid Engine, Torque, or locally.",
     long_description=readme + '\n\n' + history,
     author="Steve Davis",

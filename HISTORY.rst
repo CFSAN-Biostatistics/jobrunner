@@ -3,6 +3,10 @@
 History
 =======
 
+1.3.0 (2020-04-??)
+---------------------
+* Add support for the SLURM job scheduler.
+
 1.2.0 (2019-10-11)
 ---------------------
 * Add the capability to run in quiet mode when running locally on a workstation

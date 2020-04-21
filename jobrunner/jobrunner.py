@@ -31,11 +31,11 @@ class JobRunner(object):
         Parameters
         ----------
         hpc_type : str
-            Type of job runner.  Possible values are "grid", "torque", and "local".
+            Type of job runner.  Possible values are "grid", "slurm", "torque", and "local".
         strip_job_array_suffix : bool, optional defaults to True
             When true, the dot and array suffix in the job id is removed before returning the job id.
         qsub_extra_params : str, optional defaults to None
-            Extra command line options passed to qsub every time qsub submits a job.
+            Extra command line options passed to qsub or sbatch every time a job is submitted.
         exception_handler : function, optional defalts to None
             Function to be called in local mode only when an exception occurs while attempting to run an
             external process. The function will be called with the arguments (exc_type, exc_value, exc_traceback).
@@ -46,11 +46,11 @@ class JobRunner(object):
         --------
         >>> runner = JobRunner("foobar")
         Traceback (most recent call last):
-        ValueError: hpc_type must be one of: "grid", "torque", "local"
+        ValueError: hpc_type must be one of: "grid", "slurm", "torque", "local"
         """
         hpc_type = hpc_type.lower()
-        if hpc_type not in ["grid", "torque", "local"]:
-            raise ValueError('hpc_type must be one of: "grid", "torque", "local"')
+        if hpc_type not in ["grid", "slurm", "torque", "local"]:
+            raise ValueError('hpc_type must be one of: "grid", "slurm", "torque", "local"')
 
         self.hpc_type = hpc_type
         self.strip_job_array_suffix = strip_job_array_suffix
@@ -60,11 +60,13 @@ class JobRunner(object):
 
         if hpc_type == 'grid':
             self.subtask_env_var_name = "SGE_TASK_ID"
+        elif hpc_type == 'slurm':
+            self.subtask_env_var_name = "SLURM_ARRAY_TASK_ID"
         elif hpc_type == 'torque':
             self.subtask_env_var_name = "PBS_ARRAYID"
 
     def _make_qsub_command(self, job_name, log_file, wait_for=[], wait_for_array=[], slot_dependency=False, threads=1, parallel_environment=None, num_tasks=None, max_processes=None):
-        """Create the qsub command line to run a job on a computing cluster.
+        """Create the command line to run a job on a computing cluster.
 
         Parameters
         ----------
@@ -77,7 +79,7 @@ class JobRunner(object):
         wait_for_array : str or list of str, optional defaults to empty list
             Single array job id or list of array jobs ids to wait for before beginning execution.
         slot_dependency : bool, optional defaults to False
-            Ignored for all schedulers but grid engine.
+            Enforced for grid engine and slurm only.  Ignored for all other schedulers.
             If true, the sub-tasks of the array job being submitted will be dependent on the
             completion of the corresponding sub-tasks of the jobs in the wait_for_array.  Has
             no effect on the dependencies of non-array jobs.
@@ -94,8 +96,8 @@ class JobRunner(object):
 
         Returns
         -------
-        qsub_command_line : str
-            Qsub command line for Grid or torque.
+        command_line : str
+            Job submission command line for Grid, SLURM, or torque.
 
         Examples
         --------
@@ -119,6 +121,23 @@ class JobRunner(object):
         >>> runner._make_qsub_command("JobName", "log", ["666", "777"], ["888", "999"], slot_dependency=True, threads=8, parallel_environment="mpi", num_tasks=99, max_processes=2)
         'qsub -terse -t 1-99 -V -j y -cwd -N JobName -o log -hold_jid 666,777 -hold_jid_ad 888,999 -tc 2 -pe mpi 8 -q service.q'
 
+
+        # slurm
+        >>> runner = JobRunner("slurm", qsub_extra_params="-p short.q")
+        >>> runner._make_qsub_command("JobName", "log", "777", "888", threads=8)
+        'sbatch --parsable --export=ALL --job-name=JobName -o log --dependency=afterok:777:888 --cpus-per-task=8 -p short.q'
+
+        >>> runner._make_qsub_command("JobName", "log", ["666", "777"], ["888", "999"], threads=8)
+        'sbatch --parsable --export=ALL --job-name=JobName -o log --dependency=afterok:666:777:888:999 --cpus-per-task=8 -p short.q'
+
+        # array job
+        >>> runner._make_qsub_command("JobName", "log", ["666", "777"], ["888", "999"], slot_dependency=False, threads=8, num_tasks=44, max_processes=2)
+        'sbatch --parsable --array=1-44%2 --export=ALL --job-name=JobName -o log --dependency=afterok:666:777:888:999 --cpus-per-task=8 -p short.q'
+
+        >>> runner._make_qsub_command("JobName", "log", ["666", "777"], ["888", "999"], slot_dependency=True, threads=8, num_tasks=44, max_processes=2)
+        'sbatch --parsable --array=1-44%2 --export=ALL --job-name=JobName -o log --dependency=afterok:666:777,aftercorr:888:999 --cpus-per-task=8 -p short.q'
+
+
         # torque
         >>> runner = JobRunner("torque", qsub_extra_params="-q short.q")
         >>> cmd = runner._make_qsub_command("JobName", "log", "777", "888", threads=8)
@@ -134,7 +153,7 @@ class JobRunner(object):
         >>> cmd == "qsub -t 1-44%%2 -V -j oe -d %s -N JobName -o log -W depend=afterok:666:777,afterokarray:888:999 -l nodes=1:ppn=8 -q short.q" % os.getcwd()
         True
         """
-        if self.hpc_type not in ["grid", "torque"]:
+        if self.hpc_type not in ["grid", "slurm", "torque"]:
             raise ValueError("_make_qsub_command() does not support hpc type %s" % self.hpc_type)
 
         if self.hpc_type == "grid":
@@ -158,6 +177,33 @@ class JobRunner(object):
                 if not parallel_environment:
                     raise ValueError("You must use a parallel environment when consuming more than one thread on grid engine")
                 qsub_command_line += " -pe " + parallel_environment + ' ' + str(threads)
+
+            if self.qsub_extra_params:
+                qsub_command_line += ' ' + self.qsub_extra_params
+            return qsub_command_line
+
+        if self.hpc_type == "slurm":
+            max_processes_option = "%%%i" % max_processes if max_processes else ""
+            array_option = " --array=1-" + str(num_tasks) + max_processes_option if num_tasks else ""
+            qsub_command_line = "sbatch --parsable" + array_option + " --export=ALL --job-name=" + job_name + " -o " + log_file
+
+            if isinstance(wait_for, str):
+                wait_for = [wait_for]
+            if isinstance(wait_for_array, str):
+                wait_for_array = [wait_for_array]
+            if not slot_dependency:
+                wait_for.extend(wait_for_array)  # combine lists
+                wait_for_array = []
+            dependencies = []
+            if len(wait_for) > 0:
+                dependencies.append("afterok:" + ':'.join(wait_for))
+            if len(wait_for_array) > 0 and slot_dependency:
+                dependencies.append("aftercorr:" + ':'.join(wait_for_array))
+            if len(dependencies) > 0:
+                qsub_command_line += " --dependency=" + ','.join(dependencies)
+
+            if threads > 1:
+                qsub_command_line += " --cpus-per-task=" + str(threads)
 
             if self.qsub_extra_params:
                 qsub_command_line += ' ' + self.qsub_extra_params
@@ -268,12 +314,16 @@ class JobRunner(object):
                     raise
             return '0'
 
-        else:  # grid or torque
+        else:  # grid, slurm, or torque
             qsub_command_line = self._make_qsub_command(job_name, log_file, wait_for, wait_for_array, threads=threads, parallel_environment=parallel_environment)
 
             # Run command and return its stdout output as a byte string.
             # If the return code was non-zero it raises a CalledProcessError.
-            shell_command_line = "echo " + command_line + " | " + qsub_command_line
+
+            if self.hpc_type == "slurm":
+                command_line = "'#!/bin/sh\\n'" + command_line
+
+            shell_command_line = "echo -e " + command_line + " | " + qsub_command_line
             if self.verbose:
                 print(shell_command_line)
             job_id = subprocess.check_output(shell_command_line, shell=True)
@@ -358,6 +408,8 @@ class JobRunner(object):
 
         if self.hpc_type == "grid":
             log_file += "-\\$TASK_ID"
+        elif self.hpc_type == "slurm":
+            log_file += "-%a"
 
         if self.hpc_type == "local":
             # Change parameter placeholder into bash variables ready to feed to bash through xargs
@@ -390,7 +442,7 @@ class JobRunner(object):
                     raise
             return '0'
 
-        else:  # grid or torque
+        else:  # grid, slurm, or torque
             qsub_command_line = self._make_qsub_command(job_name, log_file, wait_for, wait_for_array, slot_dependency, threads, parallel_environment, num_tasks, max_processes)
 
             if array_subshell:
@@ -400,7 +452,11 @@ class JobRunner(object):
                 compute_node_command = "qarrayrun " + self.subtask_env_var_name + ' ' + array_file + ' ' + command_line
 
             compute_node_command = "'" + compute_node_command + "'"
-            shell_command_line = "echo " + compute_node_command + " | " + qsub_command_line
+
+            if self.hpc_type == "slurm":
+                compute_node_command = "'#!/bin/sh\\n'" + compute_node_command
+
+            shell_command_line = "echo -e " + compute_node_command + " | " + qsub_command_line
 
             if self.verbose:
                 print(shell_command_line)

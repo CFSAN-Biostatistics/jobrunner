@@ -13,7 +13,7 @@ jobrunner
 
 
 
-An abstraction layer to run jobs on HPC clusters using Grid Engine, Torque, or locally.
+An abstraction layer to run jobs on HPC clusters using Grid Engine, SLURM, Torque, or locally.
 
 The jobrunner package was developed by the United States Food
 and Drug Administration, Center for Food Safety and Applied Nutrition.
@@ -28,7 +28,7 @@ Features
 --------
 
 * Python API for job submission
-* Consistent interface to run jobs on Grid Engine, Torque, or locally
+* Consistent interface to run jobs on Grid Engine, SLURM, Torque, or locally
 * Dependencies between jobs
 * Array jobs and normal non-array jobs
 * Array job parameter substitution
