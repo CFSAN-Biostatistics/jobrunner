@@ -3,9 +3,10 @@
 History
 =======
 
-1.3.0 (2020-04-??)
+1.3.0 (2020-04-12)
 ---------------------
 * Add support for the SLURM job scheduler.
+* Add capability to request exclusive access to compute nodes when running on SLURM.
 
 1.2.0 (2019-10-11)
 ---------------------
