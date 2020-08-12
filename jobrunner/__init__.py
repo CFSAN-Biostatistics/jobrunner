@@ -8,4 +8,4 @@ from jobrunner.jobrunner import JobRunner, JobRunnerException  # noqa: F401
 
 __author__ = 'Steve Davis'
 __email__ = 'steven.davis@fda.hhs.gov'
-__version__ = '1.3.0'
+__version__ = '1.3.1'
