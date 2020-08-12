@@ -440,7 +440,7 @@ class JobRunner(object):
             # Number the tasks with nl to get the task number into the log file suffix.
             # Allow up to 9 parameters per command.
             redirection = " > " + log_file + "-$0 2>&1'" if quiet else " 2>&1 | tee " + log_file + "-$0'"
-            command_line = "nl " + array_file + " | xargs -P " + str(max_processes) + " -n 9 -L 1 bash -c + 'set -o pipefail; " + command_line + redirection
+            command_line = "head -n " + str(num_tasks) + " " + array_file + " | nl | xargs -P " + str(max_processes) + " -n 9 -L 1 bash -c + 'set -o pipefail; " + command_line + redirection
             if self.verbose:
                 print(command_line)
 

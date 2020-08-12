@@ -3,6 +3,11 @@
 History
 =======
 
+1.3.1 (2020-08-??)
+---------------------
+* Allow array tasks in local mode to process only a portion of the lines in the array file
+  by setting ``num_tasks`` to a value less than the number of lines in the array file.
+
 1.3.0 (2020-04-12)
 ---------------------
 * Add support for the SLURM job scheduler.
