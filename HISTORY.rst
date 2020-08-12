@@ -3,7 +3,7 @@
 History
 =======
 
-1.3.1 (2020-08-??)
+1.3.1 (2020-08-12)
 ---------------------
 * Allow array tasks in local mode to process only a portion of the lines in the array file
   by setting ``num_tasks`` to a value less than the number of lines in the array file.
