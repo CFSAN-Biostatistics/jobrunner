@@ -3,6 +3,10 @@
 History
 =======
 
+1.4.0 (2020-08-21)
+---------------------
+* Add support for wall clock time limits.
+
 1.3.1 (2020-08-12)
 ---------------------
 * Allow array tasks in local mode to process only a portion of the lines in the array file

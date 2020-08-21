@@ -65,7 +65,7 @@ class JobRunner(object):
         elif hpc_type == 'torque':
             self.subtask_env_var_name = "PBS_ARRAYID"
 
-    def _make_qsub_command(self, job_name, log_file, wait_for=[], wait_for_array=[], slot_dependency=False, threads=1, parallel_environment=None, num_tasks=None, max_processes=None, exclusive=False):
+    def _make_qsub_command(self, job_name, log_file, wait_for=[], wait_for_array=[], slot_dependency=False, threads=1, parallel_environment=None, num_tasks=None, max_processes=None, exclusive=False, wall_clock_limit=None):
         """Create the command line to run a job on a computing cluster.
 
         Parameters
@@ -95,6 +95,8 @@ class JobRunner(object):
         exclusive : bool, optional, defaults to False
             Requests exclusive access to compute nodes to prevent other jobs from sharing the node resources.
             Enforced only on SLURM, silently ignored for all other schedulers.
+        wall_clock_limit : str, optional, defaults to None
+            Maximum run-time; string of the form HH:MM:SS.
 
 
         Returns
@@ -115,15 +117,15 @@ class JobRunner(object):
         >>> runner._make_qsub_command("JobName", "log", "777", "888", threads=8, parallel_environment="mpi")
         'qsub -terse -V -j y -cwd -N JobName -o log -hold_jid 777,888 -pe mpi 8 -q service.q'
 
-        >>> runner._make_qsub_command("JobName", "log", ["666", "777"], ["888", "999"], threads=8, parallel_environment="mpi")
-        'qsub -terse -V -j y -cwd -N JobName -o log -hold_jid 666,777,888,999 -pe mpi 8 -q service.q'
+        >>> runner._make_qsub_command("JobName", "log", ["666", "777"], ["888", "999"], threads=8, parallel_environment="mpi", wall_clock_limit="00:00:40")
+        'qsub -terse -V -j y -cwd -N JobName -o log -hold_jid 666,777,888,999 -pe mpi 8 -l h_rt=00:00:40 -q service.q'
 
         >>> runner._make_qsub_command("JobName", "log", ["666", "777"], ["888", "999"], slot_dependency=True, threads=8, parallel_environment="mpi")
         'qsub -terse -V -j y -cwd -N JobName -o log -hold_jid 666,777 -hold_jid_ad 888,999 -pe mpi 8 -q service.q'
 
         # array job
-        >>> runner._make_qsub_command("JobName", "log", ["666", "777"], ["888", "999"], slot_dependency=True, threads=8, parallel_environment="mpi", num_tasks=99, max_processes=2)
-        'qsub -terse -t 1-99 -V -j y -cwd -N JobName -o log -hold_jid 666,777 -hold_jid_ad 888,999 -tc 2 -pe mpi 8 -q service.q'
+        >>> runner._make_qsub_command("JobName", "log", ["666", "777"], ["888", "999"], slot_dependency=True, threads=8, parallel_environment="mpi", num_tasks=99, max_processes=2, wall_clock_limit="00:00:40")
+        'qsub -terse -t 1-99 -V -j y -cwd -N JobName -o log -hold_jid 666,777 -hold_jid_ad 888,999 -tc 2 -pe mpi 8 -l h_rt=00:00:40 -q service.q'
 
 
         # slurm
@@ -132,12 +134,12 @@ class JobRunner(object):
         >>> runner._make_qsub_command("JobName", "log", "777", "888", threads=8)
         'sbatch --parsable --export=ALL --job-name=JobName -o log --dependency=afterok:777:888 --cpus-per-task=8 -p short.q'
 
-        >>> runner._make_qsub_command("JobName", "log", ["666", "777"], ["888", "999"], threads=8)
-        'sbatch --parsable --export=ALL --job-name=JobName -o log --dependency=afterok:666:777:888:999 --cpus-per-task=8 -p short.q'
+        >>> runner._make_qsub_command("JobName", "log", ["666", "777"], ["888", "999"], threads=8, wall_clock_limit="00:00:40")
+        'sbatch --parsable --export=ALL --job-name=JobName -o log --dependency=afterok:666:777:888:999 --cpus-per-task=8 --time 00:00:40 -p short.q'
 
         # array job
-        >>> runner._make_qsub_command("JobName", "log", ["666", "777"], ["888", "999"], slot_dependency=False, threads=8, num_tasks=44, max_processes=2)
-        'sbatch --parsable --array=1-44%2 --export=ALL --job-name=JobName -o log --dependency=afterok:666:777:888:999 --cpus-per-task=8 -p short.q'
+        >>> runner._make_qsub_command("JobName", "log", ["666", "777"], ["888", "999"], slot_dependency=False, threads=8, num_tasks=44, max_processes=2, wall_clock_limit="00:00:40")
+        'sbatch --parsable --array=1-44%2 --export=ALL --job-name=JobName -o log --dependency=afterok:666:777:888:999 --cpus-per-task=8 --time 00:00:40 -p short.q'
 
         >>> runner._make_qsub_command("JobName", "log", ["666", "777"], ["888", "999"], slot_dependency=True, threads=8, num_tasks=44, max_processes=2)
         'sbatch --parsable --array=1-44%2 --export=ALL --job-name=JobName -o log --dependency=afterok:666:777,aftercorr:888:999 --cpus-per-task=8 -p short.q'
@@ -153,8 +155,8 @@ class JobRunner(object):
         >>> cmd == "qsub -V -j oe -d %s -N JobName -o log -W depend=afterok:777,afterokarray:888 -l nodes=1:ppn=8 -q short.q" % os.getcwd()
         True
 
-        >>> cmd = runner._make_qsub_command("JobName", "log", ["666", "777"], ["888", "999"], threads=8)
-        >>> cmd == "qsub -V -j oe -d %s -N JobName -o log -W depend=afterok:666:777,afterokarray:888:999 -l nodes=1:ppn=8 -q short.q" % os.getcwd()
+        >>> cmd = runner._make_qsub_command("JobName", "log", ["666", "777"], ["888", "999"], threads=8, wall_clock_limit="00:00:40")
+        >>> cmd == "qsub -V -j oe -d %s -N JobName -o log -W depend=afterok:666:777,afterokarray:888:999 -l nodes=1:ppn=8 -l walltime=00:00:40 -q short.q" % os.getcwd()
         True
 
         # array job
@@ -187,6 +189,9 @@ class JobRunner(object):
                     raise ValueError("You must use a parallel environment when consuming more than one thread on grid engine")
                 qsub_command_line += " -pe " + parallel_environment + ' ' + str(threads)
 
+            if wall_clock_limit:
+                qsub_command_line += " -l h_rt=" + wall_clock_limit
+
             if self.qsub_extra_params:
                 qsub_command_line += ' ' + self.qsub_extra_params
             return qsub_command_line
@@ -215,6 +220,9 @@ class JobRunner(object):
             if threads > 1:
                 qsub_command_line += " --cpus-per-task=" + str(threads)
 
+            if wall_clock_limit:
+                qsub_command_line += " --time " + wall_clock_limit
+
             if self.qsub_extra_params:
                 qsub_command_line += ' ' + self.qsub_extra_params
             return qsub_command_line
@@ -239,11 +247,14 @@ class JobRunner(object):
             if threads > 1:
                 qsub_command_line += " -l nodes=1:ppn=" + str(threads)
 
+            if wall_clock_limit:
+                qsub_command_line += " -l walltime=" + wall_clock_limit
+
             if self.qsub_extra_params:
                 qsub_command_line += ' ' + self.qsub_extra_params
             return qsub_command_line
 
-    def run(self, command_line, job_name, log_file, wait_for=[], wait_for_array=[], threads=1, parallel_environment=None, exclusive=False, quiet=False):
+    def run(self, command_line, job_name, log_file, wait_for=[], wait_for_array=[], threads=1, parallel_environment=None, exclusive=False, wall_clock_limit=None, quiet=False):
         """Run a non-array job.  Stderr is redirected (joined) to stdout.
 
         Parameters
@@ -268,6 +279,9 @@ class JobRunner(object):
         exclusive : bool, optional, defaults to False
             Requests exclusive access to compute nodes to prevent other jobs from sharing the node resources.
             Enforced only on SLURM, silently ignored for all other schedulers.
+        wall_clock_limit : str, optional, defaults to None
+            Maximum run-time; string of the form HH:MM:SS.
+            Ignored when running locally.
         quiet : bool, optional, defaults to False
             Controls whether the job stderr and stdout are written to stdout in addition to the log file.
             By default, the job stderr and stdout are written to both stdout and the log file.
@@ -328,7 +342,7 @@ class JobRunner(object):
             return '0'
 
         else:  # grid, slurm, or torque
-            qsub_command_line = self._make_qsub_command(job_name, log_file, wait_for, wait_for_array, threads=threads, parallel_environment=parallel_environment, exclusive=exclusive)
+            qsub_command_line = self._make_qsub_command(job_name, log_file, wait_for, wait_for_array, threads=threads, parallel_environment=parallel_environment, exclusive=exclusive, wall_clock_limit=wall_clock_limit)
 
             # Run command and return its stdout output as a byte string.
             # If the return code was non-zero it raises a CalledProcessError.
@@ -347,7 +361,7 @@ class JobRunner(object):
                 print("Job id=" + job_id)
             return job_id
 
-    def run_array(self, command_line, job_name, log_file, array_file, num_tasks=None, max_processes=None, wait_for=[], wait_for_array=[], slot_dependency=False, threads=1, parallel_environment=None, array_subshell=True, exclusive=False, quiet=False):
+    def run_array(self, command_line, job_name, log_file, array_file, num_tasks=None, max_processes=None, wait_for=[], wait_for_array=[], slot_dependency=False, threads=1, parallel_environment=None, array_subshell=True, exclusive=False, wall_clock_limit=None, quiet=False):
         """Run an array of sub-tasks with the work of each task defined by a single line in the specified array_file.
 
         Parameters
@@ -394,6 +408,9 @@ class JobRunner(object):
         exclusive : bool, optional, defaults to False
             Requests exclusive access to compute nodes to prevent other jobs from sharing the node resources.
             Enforced only on SLURM, silently ignored for all other schedulers.
+        wall_clock_limit : str, optional, defaults to None
+            Maximum run-time; string of the form HH:MM:SS.
+            Ignored when running locally.
         quiet : bool, optional, defaults to False
             Controls whether the job stderr and stdout are written to stdout in addition to the log file.
             By default, the job stderr and stdout are written to both stdout and the log file.
@@ -459,7 +476,7 @@ class JobRunner(object):
             return '0'
 
         else:  # grid, slurm, or torque
-            qsub_command_line = self._make_qsub_command(job_name, log_file, wait_for, wait_for_array, slot_dependency, threads, parallel_environment, num_tasks, max_processes, exclusive=exclusive)
+            qsub_command_line = self._make_qsub_command(job_name, log_file, wait_for, wait_for_array, slot_dependency, threads, parallel_environment, num_tasks, max_processes, exclusive=exclusive, wall_clock_limit=wall_clock_limit)
 
             if array_subshell:
                 command_line = '"' + command_line + '"'
